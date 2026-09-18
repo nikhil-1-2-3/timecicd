@@ -8,42 +8,113 @@ on:
 permissions:
   contents: read
 
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  EC2_INSTANCE_ID: i-0124bdaed60607916
+  S3_BUCKET: timecheck-frontend-7dc26d0684029b78c42878462f
+  ALB_URL: http://timecheck-alb-1465769063.ap-south-1.elb.amazonaws.com
+
 jobs:
-  docker:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
+
+      # 1. Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2. AWS login
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      # 3. Login to ECR
+      - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build backend image
+      # 4. Store application secrets in Parameter Store
+      - name: Store secrets
+        run: |
+          aws ssm put-parameter \
+            --name /timecheck/MONGODB_URI \
+            --type SecureString \
+            --value '${{ secrets.MONGODB_URI }}' \
+            --overwrite
+
+          aws ssm put-parameter \
+            --name /timecheck/JWT_SECRET \
+            --type SecureString \
+            --value '${{ secrets.JWT_SECRET }}' \
+            --overwrite
+
+      # 5. Build backend Docker image
+      - name: Build backend
         run: |
           docker build \
-            -t ${{ secrets.ECR_REGISTRY }}/timecheck-backend:latest \
+            -t $ECR_REGISTRY/timecheck-backend:latest \
             ./backend
 
-      - name: Build frontend image
+      # 6. Build frontend Docker image
+      - name: Build frontend
         run: |
           docker build \
-            -t ${{ secrets.ECR_REGISTRY }}/timecheck-frontend:latest \
+            --build-arg VITE_API_URL=$ALB_URL/api \
+            -t $ECR_REGISTRY/timecheck-frontend:latest \
             ./frontend
 
-      - name: Push backend image
+      # 7. Push backend
+      - name: Push backend
         run: |
-          docker push \
-            ${{ secrets.ECR_REGISTRY }}/timecheck-backend:latest
+          docker push $ECR_REGISTRY/timecheck-backend:latest
 
-      - name: Push frontend image
+      # 8. Push frontend Docker image
+      - name: Push frontend
         run: |
-          docker push \
-            ${{ secrets.ECR_REGISTRY }}/timecheck-frontend:latest
+          docker push $ECR_REGISTRY/timecheck-frontend:latest
+
+      # 9. Build frontend files for S3
+      - name: Build frontend for S3
+        run: |
+          cd frontend
+          npm ci
+          VITE_API_URL=$ALB_URL/api npm run build
+
+      # 10. Upload frontend to S3
+      - name: Deploy frontend to S3
+        run: |
+          aws s3 sync frontend/dist/ s3://$S3_BUCKET/ --delete
+
+      # 11. Deploy backend automatically through SSM
+      - name: Deploy backend to EC2
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin '$ECR_REGISTRY'",
+              "docker pull '$ECR_REGISTRY'/timecheck-backend:latest",
+              "MONGODB_URI=$(aws ssm get-parameter --name /timecheck/MONGODB_URI --with-decryption --query Parameter.Value --output text)",
+              "JWT_SECRET=$(aws ssm get-parameter --name /timecheck/JWT_SECRET --with-decryption --query Parameter.Value --output text)",
+              "docker rm -f timecheck-backend 2>/dev/null || true",
+              "docker run -d --name timecheck-backend --restart unless-stopped -p 5000:5000 -e MONGODB_URI=\"$MONGODB_URI\" -e JWT_SECRET=\"$JWT_SECRET\" '$ECR_REGISTRY'/timecheck-backend:latest",
+              "sleep 10",
+              "curl -f http://localhost:5000/api/health"
+            ]' \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command ID: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
