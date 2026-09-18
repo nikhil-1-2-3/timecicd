@@ -7,8 +7,10 @@ import {
   PlusCircle,
   AlertCircle,
   RefreshCw,
-  FileText,
+  Search,
   CalendarCheck,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formService } from '../services/api';
@@ -18,6 +20,7 @@ const Dashboard = () => {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchSubmissions = async () => {
     try {
@@ -38,162 +41,233 @@ const Dashboard = () => {
     fetchSubmissions();
   }, []);
 
+  const filteredSubmissions = submissions.filter((sub) => {
+    const term = searchTerm.toLowerCase();
+    const date = (sub.formattedDate || sub.date || '').toLowerCase();
+    const purpose = (sub.purpose || '').toLowerCase();
+    const time = (sub.confirmedTime || '').toLowerCase();
+    return date.includes(term) || purpose.includes(term) || time.includes(term);
+  });
+
   return (
     <div>
-      {/* Dashboard Header */}
-      <div className="dashboard-header">
-        <div className="dashboard-title">
-          <h1>Welcome back, {user?.name || 'User'}!</h1>
-          <p>Review your schedule history and confirmed time slots</p>
+      {/* Dashboard Top Header */}
+      <div className="dash-header-block">
+        <div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              color: '#818cf8',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              marginBottom: '0.35rem',
+            }}
+          >
+            <Sparkles size={14} /> Real-Time MongoDB Atlas Sync
+          </div>
+          <h1 style={{ fontSize: '2.25rem' }}>Welcome back, {user?.name || 'User'}</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+            Manage your scheduled appointments and confirmed time allocations
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+
+        <div style={{ display: 'flex', gap: '0.85rem' }}>
           <button
             onClick={fetchSubmissions}
             className="btn btn-secondary btn-sm"
             title="Refresh submissions"
           >
-            <RefreshCw size={15} className={loading ? 'spin-icon' : ''} />
-            <span>Refresh</span>
+            <RefreshCw size={14} className={loading ? 'spin-icon' : ''} />
+            <span>Sync</span>
           </button>
-          <Link to="/form" className="btn btn-primary btn-sm">
-            <PlusCircle size={16} />
-            <span>New Time Request</span>
+          <Link to="/form" className="btn btn-primary btn-sm btn-glow">
+            <PlusCircle size={15} />
+            <span>New Request</span>
           </Link>
         </div>
       </div>
 
-      {/* Metric Cards */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon">
+      {/* Metrics Row */}
+      <div className="metrics-row">
+        <div className="metric-card">
+          <div className="metric-icon-box">
             <CalendarCheck size={24} />
           </div>
           <div>
-            <div className="stat-number">{submissions.length}</div>
-            <div className="stat-label">Total Submissions</div>
+            <div className="metric-number">{submissions.length}</div>
+            <div className="metric-title">Total Bookings</div>
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="metric-card">
           <div
-            className="stat-icon"
-            style={{ background: 'var(--success-light)', color: 'var(--success)' }}
+            className="metric-icon-box"
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: '#34d399',
+            }}
           >
             <CheckCircle2 size={24} />
           </div>
           <div>
-            <div className="stat-number">{submissions.length}</div>
-            <div className="stat-label">Confirmed Slots</div>
+            <div className="metric-number">{submissions.length}</div>
+            <div className="metric-title">Confirmed Slots</div>
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="metric-card">
           <div
-            className="stat-icon"
-            style={{ background: 'var(--primary-light)', color: 'var(--secondary)' }}
+            className="metric-icon-box"
+            style={{
+              background: 'rgba(6, 182, 212, 0.15)',
+              color: '#38bdf8',
+            }}
           >
             <Clock size={24} />
           </div>
           <div>
-            <div className="stat-number" style={{ fontSize: '1.25rem' }}>
+            <div className="metric-number" style={{ fontSize: '1.35rem' }}>
               {submissions.length > 0
                 ? submissions[0].confirmedTime || submissions[0].preferredTime
                 : 'None'}
             </div>
-            <div className="stat-label">Latest Confirmed Slot</div>
+            <div className="metric-title">Latest Confirmed Slot</div>
           </div>
         </div>
       </div>
 
-      {/* Error Message */}
+      {/* Error Alert */}
       {error && (
-        <div className="alert alert-error">
+        <div className="alert-box alert-error">
           <AlertCircle size={18} style={{ flexShrink: 0 }} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Submissions List / Table */}
-      <div className="submissions-table-card">
-        <div className="table-header-title">
-          <h3>Your Submitted Requests & Confirmed Times</h3>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {submissions.length} record{submissions.length === 1 ? '' : 's'}
-          </span>
+      {/* Submissions Panel */}
+      <div className="table-panel">
+        <div className="table-panel-header">
+          <h3 style={{ fontSize: '1.2rem' }}>Appointment History</h3>
+
+          {/* Search Box */}
+          <div style={{ position: 'relative', width: '260px' }}>
+            <Search
+              size={15}
+              style={{
+                position: 'absolute',
+                left: '0.85rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-dim)',
+              }}
+            />
+            <input
+              type="text"
+              className="input-modern"
+              placeholder="Search by date, purpose..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                paddingLeft: '2.4rem',
+                paddingTop: '0.45rem',
+                paddingBottom: '0.45rem',
+                fontSize: '0.85rem',
+              }}
+            />
+          </div>
         </div>
 
         {loading ? (
-          <div style={{ padding: '3.5rem', textAlign: 'center' }}>
+          <div style={{ padding: '4rem', textAlign: 'center' }}>
             <div
-              className="spinner spinner-primary"
-              style={{ width: '32px', height: '32px', margin: '0 auto 1rem', borderWidth: '3px' }}
+              className="spinner"
+              style={{
+                width: '32px',
+                height: '32px',
+                margin: '0 auto 1rem',
+                borderWidth: '3px',
+                borderTopColor: '#818cf8',
+              }}
             ></div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-              Loading your submission records...
+              Querying MongoDB Atlas database...
             </p>
           </div>
-        ) : submissions.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
+        ) : filteredSubmissions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '4rem 1.5rem' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(99, 102, 241, 0.1)',
+                color: '#818cf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem',
+              }}
+            >
               <Calendar size={28} />
             </div>
-            <h3>No Submissions Found</h3>
-            <p>
-              You haven't requested any time slots yet. Submit your first form to get an
-              instant confirmed slot.
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+              {searchTerm ? 'No Matching Records' : 'No Submissions Yet'}
+            </h3>
+            <p style={{ color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 1.5rem', fontSize: '0.95rem' }}>
+              {searchTerm
+                ? `No submissions found matching "${searchTerm}".`
+                : 'Submit your first schedule request to receive an instant confirmed time slot.'}
             </p>
-            <Link to="/form" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Submit Your First Request</span>
-            </Link>
+            {!searchTerm && (
+              <Link to="/form" className="btn btn-primary btn-glow">
+                <PlusCircle size={16} />
+                <span>Submit First Request</span>
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="custom-table">
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            <table className="modern-table">
               <thead>
                 <tr>
                   <th>Scheduled Date</th>
-                  <th>Preferred Time</th>
+                  <th>Requested</th>
                   <th>Confirmed Time</th>
                   <th>Purpose / Reason</th>
                   <th>Status</th>
-                  <th>Created At</th>
+                  <th>Timestamp</th>
                 </tr>
               </thead>
               <tbody>
-                {submissions.map((sub) => (
+                {filteredSubmissions.map((sub) => (
                   <tr key={sub._id || sub.id}>
                     <td>
-                      <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                      <span style={{ fontWeight: 600, color: '#ffffff' }}>
                         {sub.formattedDate || sub.date}
                       </span>
                     </td>
                     <td>
-                      <span style={{ color: 'var(--text-muted)' }}>
+                      <span style={{ color: 'var(--text-dim)' }}>
                         {sub.preferredTime}
                       </span>
                     </td>
                     <td>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: 'var(--primary)',
-                          background: 'var(--primary-light)',
-                          padding: '0.2rem 0.6rem',
-                          borderRadius: '6px',
-                        }}
-                      >
+                      <span className="time-badge">
+                        <Clock size={13} />
                         {sub.confirmedTime}
                       </span>
                     </td>
                     <td>
                       <span
                         style={{
-                          maxWidth: '220px',
+                          maxWidth: '240px',
                           display: 'inline-block',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
+                          color: '#cbd5e1',
                         }}
                         title={sub.purpose}
                       >
@@ -201,13 +275,13 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td>
-                      <span className="badge-status">
-                        <CheckCircle2 size={12} />
+                      <span className="status-badge-confirmed">
+                        <CheckCircle2 size={13} />
                         {sub.status || 'Confirmed'}
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
                         {new Date(sub.createdAt).toLocaleDateString(undefined, {
                           day: 'numeric',
                           month: 'short',

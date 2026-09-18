@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import TimeForm from './pages/TimeForm';
 import TimeResult from './pages/TimeResult';
 import Dashboard from './pages/Dashboard';
+import Logo from './components/Logo';
 
 function App() {
   return (
@@ -53,8 +54,15 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
-          <footer className="footer">
-            <p>© {new Date().getFullYear()} TimeCheck App. All rights reserved.</p>
+          <footer className="footer-modern">
+            <div className="footer-content">
+              <Link to="/" style={{ textDecoration: 'none' }}>
+                <Logo size="small" />
+              </Link>
+              <p className="footer-text">
+                © {new Date().getFullYear()} TimeCheck Inc. Smart Automated Time Confirmation Platform.
+              </p>
+            </div>
           </footer>
         </div>
       </Router>
